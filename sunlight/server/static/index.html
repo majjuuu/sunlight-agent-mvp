@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sunlight Agent</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; background: #f6f4ef; color: #2b2b2b; }
+  header { padding: 14px 22px; background: #1f3a5f; color: #fff; }
+  header h1 { margin: 0; font-size: 1.15rem; font-weight: 600; }
+  header p { margin: 2px 0 0; font-size: .8rem; opacity: .75; }
+  main { display: grid; grid-template-columns: 380px 1fr; gap: 16px; padding: 16px 22px; max-width: 1300px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  label { display: block; font-size: .78rem; font-weight: 600; margin: 10px 0 3px; color: #555; }
+  input, select, textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: .9rem; font-family: inherit; }
+  textarea { resize: vertical; min-height: 56px; }
+  button { margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: #e8842c; color: #fff; font-size: .95rem; font-weight: 600; cursor: pointer; }
+  button:disabled { background: #bbb; cursor: wait; }
+  #map { height: 380px; border-radius: 10px; }
+  #sceneCanvas { width: 100%; height: 460px; border-radius: 10px; display: block; background: #9fc4e8; }
+  .scene-controls { display: flex; align-items: center; gap: 10px; margin: 10px 0 6px; flex-wrap: wrap; }
+  .scene-controls select, .scene-controls button { width: auto; padding: 6px 10px; margin: 0; }
+  .scene-controls input[type=range] { flex: 1; min-width: 140px; }
+  .scene-controls button { background: #1f3a5f; }
+  .legend { display: flex; gap: 16px; font-size: .78rem; color: #555; margin-top: 6px; flex-wrap: wrap; }
+  .legend span::before { content: ''; display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .legend .direct::before { background: #ffcf33; }
+  .legend .blocked::before { background: #8a97a6; }
+  .legend .target::before { background: #ff8a3d; }
+  .legend .est::before { background: #b59b63; }
+  #sceneStatus { font-size: .85rem; color: #333; min-height: 1.3em; }
+  .score-row { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .score { font-size: 2.6rem; font-weight: 700; color: #1f3a5f; }
+  .formula { font-size: .68rem; color: #999; word-break: break-all; }
+  .report-text { white-space: pre-wrap; line-height: 1.55; font-size: .92rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-top: 8px; }
+  th, td { padding: 5px 8px; border-bottom: 1px solid #eee; text-align: left; }
+  .flag { background: #fff6e8; border-left: 3px solid #e8842c; padding: 8px 10px; font-size: .8rem; margin-top: 10px; border-radius: 0 6px 6px 0; }
+  .muted { color: #888; font-size: .78rem; }
+  #status { margin-top: 10px; font-size: .82rem; color: #1f3a5f; min-height: 1.2em; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sunlight Agent — does this place get good sun?</h1>
+  <p>research prototype · deterministic solar engine + agentic interpretation</p>
+</header>
+<main>
+  <div class="panel">
+    <label>Address / question</label>
+    <textarea id="query" placeholder="e.g. University of Michigan Union  ·  5th floor south-facing apartment near Seoul City Hall, morning light matters"></textarea>
+    <label>Floor</label>
+    <input id="floor" type="number" min="1" value="5">
+    <label>Window orientation</label>
+    <select id="facade">
+      <option value="180" selected>South</option>
+      <option value="135">Southeast</option>
+      <option value="225">Southwest</option>
+      <option value="90">East</option>
+      <option value="270">West</option>
+      <option value="0">North</option>
+      <option value="45">Northeast</option>
+      <option value="315">Northwest</option>
+    </select>
+    <label>Priority (optional)</label>
+    <select id="priority">
+      <option value="">—</option>
+      <option value="morning light">Morning light</option>
+      <option value="overall brightness">Overall brightness</option>
+      <option value="plants">Growing plants</option>
+      <option value="avoiding summer overheating">Avoiding summer overheating</option>
+    </select>
+    <label>Mode</label>
+    <select id="mode">
+      <option value="auto" selected>auto</option>
+      <option value="agent">agent (LLM)</option>
+      <option value="pipeline">pipeline (no LLM)</option>
+    </select>
+    <button id="go">Assess sunlight</button>
+    <div id="status"></div>
+  </div>
+
+  <div>
+    <div id="map"></div>
+    <div id="result" class="panel hidden" style="margin-top:16px">
+      <div class="score-row">
+        <span class="score" id="score">–</span>
+        <span>/ 100 livability of light</span>
+      </div>
+      <div class="formula" id="formula"></div>
+      <div class="report-text" id="report"></div>
+      <table id="seasons" class="hidden">
+        <thead><tr><th>Month</th><th>Avg daily direct sun (h)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="flag hidden" id="flags"></div>
+      <div class="muted" id="quality"></div>
+    </div>
+
+    <div id="scenePanel" class="panel hidden" style="margin-top:16px">
+      <h3 style="margin:0 0 4px;font-size:1rem;color:#1f3a5f">3D sunlight preview — how the sun enters</h3>
+      <p class="muted" style="margin:0 0 10px">Drag to orbit. Neighboring buildings cast real shadows; press Play to sweep the sun across the day.</p>
+      <canvas id="sceneCanvas"></canvas>
+      <div class="scene-controls">
+        <select id="sceneDay"></select>
+        <button id="scenePlay">▶ Play day</button>
+        <input type="range" id="sceneSlider" min="0" max="0" value="0">
+      </div>
+      <div id="sceneStatus"></div>
+      <div class="legend">
+        <span class="direct">direct sun reaches window</span>
+        <span class="blocked">blocked / wrong side</span>
+        <span class="target">target building</span>
+        <span class="est">estimated height</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([37.5665, 126.9780], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+let overlay = L.layerGroup().addTo(map);
+
+const $ = id => document.getElementById(id);
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+$('go').onclick = async () => {
+  const body = {
+    query: $('query').value.trim(),
+    floor: parseInt($('floor').value || '5'),
+    facade_azimuth_deg: parseFloat($('facade').value),
+    priority: $('priority').value || null,
+    mode: $('mode').value,
+  };
+  if (!body.query) { $('status').textContent = 'Enter an address or question first.'; return; }
+  $('go').disabled = true;
+  $('status').textContent = 'Analyzing… (fetching buildings + simulating a full year of sun)';
+  try {
+    const resp = await fetch('/api/assess', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || resp.statusText);
+    render(data);
+    $('status').textContent = `Done (mode: ${data.mode})`;
+  } catch (e) {
+    $('status').textContent = 'Error: ' + e.message;
+  } finally {
+    $('go').disabled = false;
+  }
+};
+
+function render(data) {
+  overlay.clearLayers();
+  const loc = data.location || {};
+  const lat = loc.lat, lon = loc.lon;
+  if (lat && lon) {
+    map.setView([lat, lon], 17);
+    L.marker([lat, lon]).addTo(overlay).bindPopup(loc.display_name || 'target');
+  }
+  for (const b of (data.buildings || [])) {
+    const ring = b.footprint.map(p => [p[1], p[0]]);   // lonlat -> latlng
+    L.polygon(ring, {
+      color: b.estimated ? '#c9a227' : '#1f3a5f',
+      weight: 1, fillOpacity: Math.min(.55, .12 + b.height_m / 120),
+    }).addTo(overlay).bindTooltip(`${b.name || 'building'} · ${b.height_m.toFixed(0)}m${b.estimated ? ' (est.)' : ''}`);
+  }
+
+  const a = data.assessment;
+  const rep = data.report;
+  $('result').classList.remove('hidden');
+  const score = rep?.livability_score ?? a?.livability_score?.score;
+  $('score').textContent = score ?? '–';
+  $('formula').textContent = rep?.score_formula ?? a?.livability_score?.formula ?? '';
+  $('report').textContent = rep?.report
+      ?? (a ? `${a.annual_direct_hours} h of geometric direct sun per year `
+            + `(${a.climate_corrected?.annual_expected_hours ?? '–'} h expected after cloud correction), `
+            + `${a.obstruction_loss_pct}% lost to surrounding buildings.` : '');
+
+  const tbody = $('seasons').querySelector('tbody');
+  tbody.innerHTML = '';
+  if (a?.monthly_avg_daily_hours) {
+    $('seasons').classList.remove('hidden');
+    for (const [m, h] of Object.entries(a.monthly_avg_daily_hours)) {
+      tbody.insertAdjacentHTML('beforeend', `<tr><td>${MONTHS[m-1] ?? m}</td><td>${h}</td></tr>`);
+    }
+  }
+
+  const flags = rep?.assumptions_and_estimates || [];
+  if (a?.assumptions) flags.push(
+    `Assumed: floor ${a.assumptions.floor}, window height ${a.assumptions.window_height_m} m, `
+    + `facing ${a.assumptions.facade_azimuth_deg}°, timezone ${a.assumptions.timezone}`);
+  $('flags').classList.toggle('hidden', flags.length === 0);
+  $('flags').innerHTML = flags.map(f => '· ' + f).join('<br>');
+
+  const dq = a?.data_quality;
+  $('quality').textContent = dq
+    ? `${dq.count} buildings (${dq.with_measured_height} measured heights / ${dq.with_estimated_height} estimated) · ${dq.source}`
+    : (rep?.data_quality || '');
+
+  if (window.SunScene) {
+    try { window.SunScene.update(data); }
+    catch (e) { $('status').textContent += ' (3D preview error: ' + e.message + ')'; }
+  }
+}
+</script>
+<script type="module" src="/static/scene3d.js?v=3"></script>
+</body>
+</html>

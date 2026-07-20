@@ -1,0 +1,11 @@
+site_id,address,lat,lon,floor,facade_azimuth_deg,notes
+S01,Seoul City Hall,,,5,180,city hall - open plaza to the south
+S02,Seoul Station,,,3,180,dense mid-rise context
+S03,"National Assembly Building, Yeouido, Seoul",,,2,180,open riverside
+S04,"Gangnam Station, Seoul",,,7,180,high-rise canyon
+S05,"Yonsei University Sinchon Campus, Seoul",,,4,135,campus - low density
+S06,"Lotte World Tower, Jamsil, Seoul",,,10,270,supertall neighbor
+S07,"Bukchon Hanok Village, Seoul",,,1,180,low-rise historic
+S08,"Digital Media City Station, Seoul",,,6,90,office towers
+S09,"Gwanghwamun Square, Seoul",,,3,225,government district
+S10,"Itaewon Station, Seoul",,,2,0,north-facing test case
