@@ -17,6 +17,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from sunlight.agent.pipeline import run_pipeline
+from sunlight.config import load_env
+
+load_env()
 
 STATIC_DIR = Path(__file__).parent / "static"
 

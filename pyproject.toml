@@ -13,6 +13,7 @@ dependencies = [
     "uvicorn>=0.29",
     "anthropic>=0.40",
     "timezonefinder>=6.5",
+    "python-dotenv>=1.0",
 ]
 
 [dependency-groups]
